@@ -1,0 +1,41 @@
+[
+  {
+    "chainId": "robinhood",
+    "dexId": "uniswap",
+    "pairAddress": "pair-DUMP",
+    "baseToken": {
+      "address": "0x3333333333333333333333333333333333333333",
+      "name": "Dump",
+      "symbol": "DUMP"
+    },
+    "quoteToken": {
+      "address": "0x0bd7d308f8e1639bdc7e7e8f4b87f43a2b9b4a1e",
+      "name": "WETH",
+      "symbol": "WETH"
+    },
+    "priceUsd": "0.002",
+    "txns": {
+      "m5": {
+        "buys": 8,
+        "sells": 4
+      },
+      "h1": {
+        "buys": 40,
+        "sells": 30
+      }
+    },
+    "volume": {
+      "h1": 7000,
+      "h24": 14000
+    },
+    "priceChange": {
+      "m5": 1.0,
+      "h1": -55.0
+    },
+    "liquidity": {
+      "usd": 30000
+    },
+    "fdv": 90000,
+    "marketCap": 90000
+  }
+]

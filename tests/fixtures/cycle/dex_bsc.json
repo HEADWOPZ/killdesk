@@ -1,0 +1,80 @@
+[
+  {
+    "chainId": "bsc",
+    "dexId": "uniswap",
+    "pairAddress": "pair-HONEY",
+    "baseToken": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "name": "Honey",
+      "symbol": "HONEY"
+    },
+    "quoteToken": {
+      "address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+      "name": "WBNB",
+      "symbol": "WBNB"
+    },
+    "priceUsd": "0.001",
+    "txns": {
+      "m5": {
+        "buys": 10,
+        "sells": 6
+      },
+      "h1": {
+        "buys": 60,
+        "sells": 40
+      }
+    },
+    "volume": {
+      "h1": 8000,
+      "h24": 16000
+    },
+    "priceChange": {
+      "m5": 1.0,
+      "h1": 5.0
+    },
+    "liquidity": {
+      "usd": 20000
+    },
+    "fdv": 150000,
+    "marketCap": 150000
+  },
+  {
+    "chainId": "bsc",
+    "dexId": "uniswap",
+    "pairAddress": "pair-WEAK",
+    "baseToken": {
+      "address": "0x2222222222222222222222222222222222222222",
+      "name": "Weak",
+      "symbol": "WEAK"
+    },
+    "quoteToken": {
+      "address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+      "name": "WBNB",
+      "symbol": "WBNB"
+    },
+    "priceUsd": "0.001",
+    "txns": {
+      "m5": {
+        "buys": 1,
+        "sells": 12
+      },
+      "h1": {
+        "buys": 10,
+        "sells": 90
+      }
+    },
+    "volume": {
+      "h1": 6000,
+      "h24": 12000
+    },
+    "priceChange": {
+      "m5": 1.0,
+      "h1": 2.0
+    },
+    "liquidity": {
+      "usd": 20000
+    },
+    "fdv": 80000,
+    "marketCap": 80000
+  }
+]

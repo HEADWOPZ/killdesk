@@ -1,0 +1,12 @@
+{
+  "status": "1",
+  "message": "OK",
+  "result": [
+    {
+      "SourceCode": "contract Honey { mapping(address => bool) public isBlacklisted; function addBlacklist(address a) public { isBlacklisted[a] = true; } }",
+      "ABI": "[]",
+      "ContractName": "Honey",
+      "Proxy": "0"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "data": {
+    "id": "0x1111111111111111111111111111111111111111",
+    "type": "token",
+    "attributes": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "name": "Honey",
+      "symbol": "HONEY",
+      "decimals": 6,
+      "twitter_handle": null,
+      "telegram_handle": null,
+      "websites": [],
+      "is_honeypot": "yes",
+      "holders": {
+        "count": 100,
+        "distribution_percentage": {
+          "top_10": "20.0"
+        },
+        "last_updated": "2026-10-07T15:00:00Z"
+      }
+    }
+  }
+}

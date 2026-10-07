@@ -1,0 +1,80 @@
+[
+  {
+    "chainId": "solana",
+    "dexId": "raydium",
+    "pairAddress": "pair-GOOD",
+    "baseToken": {
+      "address": "GoodMint1111111111111111111111111111111111",
+      "name": "Good Coin",
+      "symbol": "GOOD"
+    },
+    "quoteToken": {
+      "address": "So11111111111111111111111111111111111111112",
+      "name": "SOL",
+      "symbol": "SOL"
+    },
+    "priceUsd": "0.00042",
+    "txns": {
+      "m5": {
+        "buys": 12,
+        "sells": 8
+      },
+      "h1": {
+        "buys": 80,
+        "sells": 50
+      }
+    },
+    "volume": {
+      "h1": 18000,
+      "h24": 36000
+    },
+    "priceChange": {
+      "m5": 1.0,
+      "h1": 8.0
+    },
+    "liquidity": {
+      "usd": 45000
+    },
+    "fdv": 380000,
+    "marketCap": 380000
+  },
+  {
+    "chainId": "solana",
+    "dexId": "raydium",
+    "pairAddress": "pair-RUG",
+    "baseToken": {
+      "address": "RugMint11111111111111111111111111111111111",
+      "name": "Rug Coin",
+      "symbol": "RUG"
+    },
+    "quoteToken": {
+      "address": "So11111111111111111111111111111111111111112",
+      "name": "SOL",
+      "symbol": "SOL"
+    },
+    "priceUsd": "0.00042",
+    "txns": {
+      "m5": {
+        "buys": 12,
+        "sells": 8
+      },
+      "h1": {
+        "buys": 80,
+        "sells": 50
+      }
+    },
+    "volume": {
+      "h1": 18000,
+      "h24": 36000
+    },
+    "priceChange": {
+      "m5": 1.0,
+      "h1": 8.0
+    },
+    "liquidity": {
+      "usd": 45000
+    },
+    "fdv": 380000,
+    "marketCap": 380000
+  }
+]

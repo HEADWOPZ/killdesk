@@ -1,0 +1,25 @@
+{
+  "data": {
+    "id": "GoodMint1111111111111111111111111111111111",
+    "type": "token",
+    "attributes": {
+      "address": "GoodMint1111111111111111111111111111111111",
+      "name": "Good Coin",
+      "symbol": "GOOD",
+      "decimals": 6,
+      "twitter_handle": "goodcoin",
+      "telegram_handle": null,
+      "websites": [],
+      "is_honeypot": "no",
+      "holders": {
+        "count": 100,
+        "distribution_percentage": {
+          "top_10": "20.0"
+        },
+        "last_updated": "2026-10-07T15:00:00Z"
+      },
+      "mint_authority": "no",
+      "freeze_authority": "no"
+    }
+  }
+}

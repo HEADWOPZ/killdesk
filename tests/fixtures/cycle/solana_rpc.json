@@ -1,0 +1,58 @@
+{
+  "GoodMint1111111111111111111111111111111111": {
+    "account": {
+      "decimals": 6,
+      "freezeAuthority": null,
+      "isInitialized": true,
+      "mintAuthority": null,
+      "supply": "1000000000"
+    },
+    "supply": {
+      "amount": "1000000000",
+      "decimals": 6,
+      "uiAmount": 1000
+    },
+    "largest": [
+      {
+        "address": "lp",
+        "amount": "400000000",
+        "decimals": 6
+      },
+      {
+        "address": "h2",
+        "amount": "40000000",
+        "decimals": 6
+      },
+      {
+        "address": "h3",
+        "amount": "20000000",
+        "decimals": 6
+      }
+    ]
+  },
+  "RugMint11111111111111111111111111111111111": {
+    "account": {
+      "decimals": 6,
+      "freezeAuthority": "Creator111",
+      "isInitialized": true,
+      "mintAuthority": "Creator111",
+      "supply": "1000000000"
+    },
+    "supply": {
+      "amount": "1000000000",
+      "decimals": 6
+    },
+    "largest": [
+      {
+        "address": "lp",
+        "amount": "200000000",
+        "decimals": 6
+      },
+      {
+        "address": "insider",
+        "amount": "500000000",
+        "decimals": 6
+      }
+    ]
+  }
+}
