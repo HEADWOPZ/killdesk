@@ -1,0 +1,212 @@
+{
+  "data": [
+    {
+      "id": "bsc_0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "type": "pool",
+      "attributes": {
+        "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "HONEY / WBNB",
+        "base_token_price_usd": "0.00042",
+        "quote_token_price_usd": "100",
+        "fdv_usd": "150000",
+        "market_cap_usd": "150000",
+        "reserve_in_usd": "20000",
+        "pool_created_at": "2026-10-07T16:00:00Z",
+        "price_change_percentage": {
+          "m5": "1",
+          "m15": "1",
+          "m30": "1",
+          "h1": "5",
+          "h6": "1",
+          "h24": "1"
+        },
+        "transactions": {
+          "m5": {
+            "buys": 60,
+            "sells": 40,
+            "buyers": 60,
+            "sellers": 40
+          },
+          "m15": {
+            "buys": 60,
+            "sells": 40,
+            "buyers": 60,
+            "sellers": 40
+          },
+          "m30": {
+            "buys": 60,
+            "sells": 40,
+            "buyers": 60,
+            "sellers": 40
+          },
+          "h1": {
+            "buys": 60,
+            "sells": 40,
+            "buyers": 60,
+            "sellers": 40
+          },
+          "h6": {
+            "buys": 60,
+            "sells": 40,
+            "buyers": 60,
+            "sellers": 40
+          },
+          "h24": {
+            "buys": 60,
+            "sells": 40,
+            "buyers": 60,
+            "sellers": 40
+          }
+        },
+        "volume_usd": {
+          "m5": "1000",
+          "m15": "1000",
+          "m30": "1000",
+          "h1": "8000",
+          "h6": "8000",
+          "h24": "16000"
+        }
+      },
+      "relationships": {
+        "base_token": {
+          "data": {
+            "id": "bsc_0x1111111111111111111111111111111111111111",
+            "type": "token"
+          }
+        },
+        "quote_token": {
+          "data": {
+            "id": "bsc_0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+            "type": "token"
+          }
+        },
+        "dex": {
+          "data": {
+            "id": "pancakeswap",
+            "type": "dex"
+          }
+        }
+      }
+    },
+    {
+      "id": "bsc_0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "type": "pool",
+      "attributes": {
+        "address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "WEAK / WBNB",
+        "base_token_price_usd": "0.00042",
+        "quote_token_price_usd": "100",
+        "fdv_usd": "80000",
+        "market_cap_usd": "80000",
+        "reserve_in_usd": "20000",
+        "pool_created_at": "2026-10-07T16:00:00Z",
+        "price_change_percentage": {
+          "m5": "1",
+          "m15": "1",
+          "m30": "1",
+          "h1": "2",
+          "h6": "1",
+          "h24": "1"
+        },
+        "transactions": {
+          "m5": {
+            "buys": 40,
+            "sells": 30,
+            "buyers": 40,
+            "sellers": 30
+          },
+          "m15": {
+            "buys": 40,
+            "sells": 30,
+            "buyers": 40,
+            "sellers": 30
+          },
+          "m30": {
+            "buys": 40,
+            "sells": 30,
+            "buyers": 40,
+            "sellers": 30
+          },
+          "h1": {
+            "buys": 40,
+            "sells": 30,
+            "buyers": 40,
+            "sellers": 30
+          },
+          "h6": {
+            "buys": 40,
+            "sells": 30,
+            "buyers": 40,
+            "sellers": 30
+          },
+          "h24": {
+            "buys": 40,
+            "sells": 30,
+            "buyers": 40,
+            "sellers": 30
+          }
+        },
+        "volume_usd": {
+          "m5": "1000",
+          "m15": "1000",
+          "m30": "1000",
+          "h1": "6000",
+          "h6": "6000",
+          "h24": "12000"
+        }
+      },
+      "relationships": {
+        "base_token": {
+          "data": {
+            "id": "bsc_0x2222222222222222222222222222222222222222",
+            "type": "token"
+          }
+        },
+        "quote_token": {
+          "data": {
+            "id": "bsc_0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+            "type": "token"
+          }
+        },
+        "dex": {
+          "data": {
+            "id": "pancakeswap",
+            "type": "dex"
+          }
+        }
+      }
+    }
+  ],
+  "included": [
+    {
+      "id": "bsc_0x1111111111111111111111111111111111111111",
+      "type": "token",
+      "attributes": {
+        "address": "0x1111111111111111111111111111111111111111",
+        "name": "Honey",
+        "symbol": "HONEY",
+        "decimals": 6
+      }
+    },
+    {
+      "id": "bsc_0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+      "type": "token",
+      "attributes": {
+        "address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+        "name": "WBNB",
+        "symbol": "WBNB",
+        "decimals": 9
+      }
+    },
+    {
+      "id": "bsc_0x2222222222222222222222222222222222222222",
+      "type": "token",
+      "attributes": {
+        "address": "0x2222222222222222222222222222222222222222",
+        "name": "Weak",
+        "symbol": "WEAK",
+        "decimals": 6
+      }
+    }
+  ]
+}

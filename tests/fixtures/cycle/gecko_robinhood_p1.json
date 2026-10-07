@@ -1,0 +1,114 @@
+{
+  "data": [
+    {
+      "id": "robinhood_0xcccccccccccccccccccccccccccccccccccccccc",
+      "type": "pool",
+      "attributes": {
+        "address": "0xcccccccccccccccccccccccccccccccccccccccc",
+        "name": "DUMP / WETH",
+        "base_token_price_usd": "0.00042",
+        "quote_token_price_usd": "100",
+        "fdv_usd": "90000",
+        "market_cap_usd": "90000",
+        "reserve_in_usd": "30000",
+        "pool_created_at": "2026-10-07T16:00:00Z",
+        "price_change_percentage": {
+          "m5": "1",
+          "m15": "1",
+          "m30": "1",
+          "h1": "3",
+          "h6": "1",
+          "h24": "1"
+        },
+        "transactions": {
+          "m5": {
+            "buys": 50,
+            "sells": 30,
+            "buyers": 50,
+            "sellers": 30
+          },
+          "m15": {
+            "buys": 50,
+            "sells": 30,
+            "buyers": 50,
+            "sellers": 30
+          },
+          "m30": {
+            "buys": 50,
+            "sells": 30,
+            "buyers": 50,
+            "sellers": 30
+          },
+          "h1": {
+            "buys": 50,
+            "sells": 30,
+            "buyers": 50,
+            "sellers": 30
+          },
+          "h6": {
+            "buys": 50,
+            "sells": 30,
+            "buyers": 50,
+            "sellers": 30
+          },
+          "h24": {
+            "buys": 50,
+            "sells": 30,
+            "buyers": 50,
+            "sellers": 30
+          }
+        },
+        "volume_usd": {
+          "m5": "1000",
+          "m15": "1000",
+          "m30": "1000",
+          "h1": "7000",
+          "h6": "7000",
+          "h24": "14000"
+        }
+      },
+      "relationships": {
+        "base_token": {
+          "data": {
+            "id": "robinhood_0x3333333333333333333333333333333333333333",
+            "type": "token"
+          }
+        },
+        "quote_token": {
+          "data": {
+            "id": "robinhood_0x0bd7d308f8e1639bdc7e7e8f4b87f43a2b9b4a1e",
+            "type": "token"
+          }
+        },
+        "dex": {
+          "data": {
+            "id": "uniswap",
+            "type": "dex"
+          }
+        }
+      }
+    }
+  ],
+  "included": [
+    {
+      "id": "robinhood_0x3333333333333333333333333333333333333333",
+      "type": "token",
+      "attributes": {
+        "address": "0x3333333333333333333333333333333333333333",
+        "name": "Dump",
+        "symbol": "DUMP",
+        "decimals": 6
+      }
+    },
+    {
+      "id": "robinhood_0x0bd7d308f8e1639bdc7e7e8f4b87f43a2b9b4a1e",
+      "type": "token",
+      "attributes": {
+        "address": "0x0bd7d308f8e1639bdc7e7e8f4b87f43a2b9b4a1e",
+        "name": "WETH",
+        "symbol": "WETH",
+        "decimals": 9
+      }
+    }
+  ]
+}
