@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import threading
 import urllib.request
 from pathlib import Path
@@ -77,9 +78,14 @@ def test_server_serves_page_snapshot_and_stream(tmp_path: Path) -> None:
         server.server_close()
 
 
+def _plain(text: str) -> str:
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
 def test_dashboard_command_is_registered() -> None:
-    result = CliRunner().invoke(app, ["dashboard", "--help"])
+    env = {"NO_COLOR": "1", "TERM": "dumb", "COLUMNS": "200"}
+    result = CliRunner().invoke(app, ["dashboard", "--help"], env=env)
     assert result.exit_code == 0
-    assert "--port" in result.stdout
-    run_help = CliRunner().invoke(app, ["run", "--help"])
-    assert "--dashboard" in run_help.stdout
+    assert "--port" in _plain(result.stdout)
+    run_help = CliRunner().invoke(app, ["run", "--help"], env=env)
+    assert "--dashboard" in _plain(run_help.stdout)
