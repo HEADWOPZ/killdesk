@@ -105,6 +105,9 @@ class Candidate(BaseModel):
     age_minutes: float | None = None
     quote_symbol: str | None = None
     dex: str | None = None
+    # Where the desk found it: "new" (new_pools), "trending" (trending_pools),
+    # or "ripe" (a too_early pool re-fetched once it was old enough).
+    source: str = "new"
     trade: TradeStats | None = None
     chain_facts: ChainFacts | None = None
 

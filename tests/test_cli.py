@@ -26,6 +26,8 @@ def test_mock_once_against_fixtures_then_report(tmp_path: Path) -> None:
             str(FIXTURES),
             "--db",
             str(db),
+            "--now",
+            "2026-10-07T18:00:00+00:00",
         ],
     )
     assert result.exit_code == 0, result.stdout + result.stderr

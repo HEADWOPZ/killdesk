@@ -1,4 +1,4 @@
-"""CLI. `killdesk run` and `killdesk report`.
+"""CLI. `killdesk run`, `killdesk report`, and `killdesk dashboard`.
 
 Shadow mode is the only mode. `--no-shadow` exits without scanning.
 """
@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +16,7 @@ import httpx
 import typer
 
 from killdesk import __version__
-from killdesk.book import Book, format_report, utcnow
+from killdesk.book import Book, format_report, iso, parse_iso, utcnow
 from killdesk.config import Settings
 from killdesk.cycle import run_cycle
 from killdesk.executor import Executor
@@ -54,6 +56,14 @@ def run(
     db: Path | None = typer.Option(None, "--db", help="SQLite path. Default desk.db or KILLDESK_DB."),
     pages: int = typer.Option(1, "--pages", help="GeckoTerminal new-pool pages per chain."),
     interval_minutes: int = typer.Option(15, "--interval-minutes", help="Daemon sleep between cycles."),
+    dashboard: bool = typer.Option(
+        False, "--dashboard", help="Also serve the live dashboard (same process, background thread)."
+    ),
+    host: str = typer.Option("127.0.0.1", "--host", help="Dashboard bind address (with --dashboard)."),
+    port: int = typer.Option(8787, "--port", help="Dashboard port (with --dashboard)."),
+    now: str | None = typer.Option(
+        None, "--now", hidden=True, help="Pin the clock (ISO time) for replaying fixtures with --once."
+    ),
 ) -> None:
     """Scan, kill, judge, and record a shadow position. Or just watch the open one."""
     _configure_logging()
@@ -78,7 +88,34 @@ def run(
         settings.fixtures = fixtures
     if mock:
         settings.judge_backend = "mock"
-    asyncio.run(_serve(settings, once=once))
+    pinned = parse_iso(now) if now else None
+    if dashboard:
+        from killdesk.dashboard.server import start_in_thread
+
+        server = start_in_thread(settings.db_path, host=host, port=port)
+        typer.echo(f"KillDesk dashboard on http://{host}:{server.server_address[1]}  (shadow mode)")
+    asyncio.run(_serve(settings, once=once, pinned_now=pinned))
+
+
+@app.command("dashboard")
+def dashboard_cmd(
+    db: Path | None = typer.Option(None, "--db", help="SQLite path. Default desk.db or KILLDESK_DB."),
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address. Use 0.0.0.0 to reach it from your LAN."),
+    port: int = typer.Option(8787, "--port", help="Port."),
+    live_marks: bool = typer.Option(
+        True,
+        "--live-marks/--no-live-marks",
+        help="Fetch live DexScreener marks and GeckoTerminal candles for the focus token.",
+    ),
+) -> None:
+    """Serve the animated live dashboard over desk.db. Read-only; run the desk separately."""
+    from killdesk.dashboard.server import serve
+
+    _configure_logging()
+    settings = Settings.from_env()
+    path = db or settings.db_path
+    typer.echo(f"KillDesk dashboard on http://{host}:{port}  reading {path}  (shadow mode, read-only)")
+    serve(path, host=host, port=port, live_marks=live_marks)
 
 
 @app.command()
@@ -105,8 +142,17 @@ def version() -> None:
 app.command("version")(version)
 
 
-async def _serve(settings: Settings, *, once: bool) -> None:
+async def _serve(settings: Settings, *, once: bool, pinned_now: datetime | None = None) -> None:
     book = Book(settings.db_path)
+    model_label = "jev-mock" if settings.judge_backend == "mock" else settings.judge_model
+    book.set_meta(
+        mode="shadow",
+        judge=model_label,
+        interval_minutes=settings.interval_minutes,
+        daemon_started_at=iso(utcnow()),
+        status="starting",
+        pid=os.getpid(),
+    )
     key, base = settings.judge_key_and_url()
     judge = build_judge(
         mock=settings.judge_backend == "mock",
@@ -123,15 +169,21 @@ async def _serve(settings: Settings, *, once: bool) -> None:
             client = httpx.AsyncClient(timeout=20)
             sources = LiveSources(client, settings)
         while True:
+            started = pinned_now or utcnow()
+            book.set_meta(status="scanning", cycle_started_at=iso(utcnow()), next_cycle_at=None)
             try:
-                result = await run_cycle(settings, book, sources, judge, utcnow())
+                result = await run_cycle(settings, book, sources, judge, started)
                 typer.echo(result.text)
             except Exception:
                 log.exception("cycle crashed; continuing" if not once else "cycle crashed")
+                book.set_meta(status="error")
                 if once:
                     raise
             if once:
+                book.set_meta(status="idle", next_cycle_at=None)
                 return
+            wake = utcnow() + timedelta(minutes=settings.interval_minutes)
+            book.set_meta(status="sleeping", next_cycle_at=iso(wake), last_cycle_at=iso(utcnow()))
             await asyncio.sleep(settings.interval_minutes * 60)
     finally:
         await judge.aclose()

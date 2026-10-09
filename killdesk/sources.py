@@ -60,6 +60,43 @@ class LiveSources:
             raise SourceError("gecko", "new_pools payload is not an object")
         return payload
 
+    async def gecko_trending_pools(self, chain: str) -> dict:
+        """Aged pools with real flow. One call per chain per cycle."""
+        url = f"{GECKO_BASE}/networks/{chain}/trending_pools"
+        payload = await request_json(
+            self.client,
+            "GET",
+            url,
+            source="gecko",
+            bucket=self.gecko_bucket,
+            breaker=self.breakers["gecko"],
+            headers={"Accept": GECKO_ACCEPT, "User-Agent": DESK_UA},
+            params={"page": "1", "duration": "1h", "include": "base_token,quote_token"},
+        )
+        if not isinstance(payload, dict):
+            raise SourceError("gecko", "trending_pools payload is not an object")
+        return payload
+
+    async def gecko_pools_multi(self, chain: str, pool_addresses: list[str]) -> dict:
+        """Re-fetch up to 30 pools by address in one call (used for ripened too_early pools)."""
+        if not pool_addresses:
+            return {"data": [], "included": []}
+        joined = ",".join(pool_addresses[:30])
+        url = f"{GECKO_BASE}/networks/{chain}/pools/multi/{joined}"
+        payload = await request_json(
+            self.client,
+            "GET",
+            url,
+            source="gecko",
+            bucket=self.gecko_bucket,
+            breaker=self.breakers["gecko"],
+            headers={"Accept": GECKO_ACCEPT, "User-Agent": DESK_UA},
+            params={"include": "base_token,quote_token"},
+        )
+        if not isinstance(payload, dict):
+            raise SourceError("gecko", "pools/multi payload is not an object")
+        return payload
+
     async def gecko_token_info(self, chain: str, address: str) -> dict:
         url = f"{GECKO_BASE}/networks/{chain}/tokens/{address}/info"
         payload = await request_json(
@@ -215,6 +252,20 @@ class FixtureSources:
                 return {"data": [], "included": []}
             raise SourceError("gecko", f"missing fixture {name}")
         return json.loads(path.read_text(encoding="utf-8"))
+
+    async def gecko_trending_pools(self, chain: str) -> dict:
+        self.gecko_calls += 1
+        return self._optional(f"gecko_{chain}_trending.json") or {"data": [], "included": []}
+
+    async def gecko_pools_multi(self, chain: str, pool_addresses: list[str]) -> dict:
+        self.gecko_calls += 1
+        payload = self._optional(f"gecko_{chain}_multi.json") or {"data": [], "included": []}
+        wanted = set(pool_addresses)
+        rows = [
+            row for row in payload.get("data") or []
+            if isinstance(row, dict) and (row.get("attributes") or {}).get("address") in wanted
+        ]
+        return {"data": rows, "included": payload.get("included") or []}
 
     async def gecko_token_info(self, chain: str, address: str) -> dict:
         self.gecko_calls += 1

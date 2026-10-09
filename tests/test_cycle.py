@@ -197,8 +197,11 @@ def test_fixture_cycle_opens_one_shadow_position() -> None:
         assert blob["pick"]["answers"]["selection"]["choice"].endswith(GOOD)
         assert book.is_benched(f"bsc:{'0x1111111111111111111111111111111111111111'}", NOW + timedelta(days=30))
         early = "solana:EarlyMint111111111111111111111111111111111"
-        assert book.is_benched(early, NOW + timedelta(minutes=30))
-        assert not book.is_benched(early, NOW + timedelta(hours=2))
+        # EarlyMint is 2 minutes old: benched only until it reaches the 30 minute floor,
+        # and put on the ripening watchlist so a later cycle re-fetches it by address.
+        assert book.is_benched(early, NOW + timedelta(minutes=20))
+        assert not book.is_benched(early, NOW + timedelta(minutes=29))
+        assert [row["token_key"] for row in book.due_watch("solana", NOW + timedelta(minutes=29))] == [early]
         calls_after_open = sources.gecko_calls
         second = asyncio.run(run_cycle(settings, book, sources, judge, NOW + timedelta(minutes=15)))
         assert second.skipped_scan is True

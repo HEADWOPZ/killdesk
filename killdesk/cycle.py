@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from killdesk.book import Book, iso
@@ -100,7 +101,7 @@ async def run_cycle(
             )
         lines.append("scan resumed")
 
-    candidates, scan_errors = await _scan(sources, settings.pages, now)
+    candidates, scan_errors, source_counts = await _scan(sources, settings.pages, now, book, thresholds)
     source_errors.extend(scan_errors)
     skipped_benched = 0
     free_pass: list[Candidate] = []
@@ -113,6 +114,7 @@ async def run_cycle(
         if check:
             _reject(book, cycle_id, candidate, "free_kill", check, "", now, thresholds, rejections)
             continue
+        _log_pass(book, cycle_id, candidate, "free_kill", now)
         free_pass.append(candidate)
 
     trade_pass = await _trade_stage(
@@ -140,6 +142,7 @@ async def run_cycle(
             detail = "; ".join(candidate.chain_facts.notes) if candidate.chain_facts else ""
             _reject(book, cycle_id, candidate, "chain_kill", check, detail, now, thresholds, rejections)
             continue
+        _log_pass(book, cycle_id, candidate, "chain_kill", now)
         state = build_state(candidate)
         try:
             call = await judge.ask(state, questions_for(candidate.chain, state))
@@ -155,6 +158,7 @@ async def run_cycle(
         if check:
             _reject(book, cycle_id, candidate, "soft_kill", check, "", now, thresholds, rejections)
             continue
+        _log_pass(book, cycle_id, candidate, "soft_kill", now)
         judged.append((candidate, with_judgement(state, call.model, call.answers), call))
 
     pick_label = "no_trade"
@@ -231,6 +235,7 @@ async def run_cycle(
                     }
                 )
                 opened = True
+                _log_pass(book, cycle_id, candidate, "pick", now, reason="shadow_open")
                 lines.append(
                     f"shadow OPEN {candidate.symbol} {candidate.chain} "
                     f"ca={candidate.token_address} entry_price={price} "
@@ -287,7 +292,24 @@ async def run_cycle(
         skipped_scan=False,
         source_errors=source_errors,
         notify=notify,
-        extra={"baseline": baseline},
+        extra={
+            "baseline": baseline,
+            "benched_skip": skipped_benched,
+            "stage_counts": stage_counts,
+            "sources": source_counts,
+            "funnel": {
+                "scanned": len(candidates),
+                "fresh": len(candidates) - skipped_benched,
+                "free_pass": len(free_pass),
+                "trade_pass": len(trade_pass),
+                "dossiers": len(dossiers),
+                "judged": len(judged),
+                "pick": 0 if pick_label == "no_trade" else 1,
+            },
+            "confidence": confidence,
+            "jev": _jev_summary(judged, pick_call, pick_label, confidence, model_id, baseline, counts),
+            "watchlist": book.watch_count(),
+        },
     )
 
 
@@ -329,7 +351,11 @@ async def _monitor(open_row, sources, book, now, thresholds, source_errors):
     ]
 
 
-async def _scan(sources, pages: int, now: datetime) -> tuple[list[Candidate], list[str]]:
+async def _scan(
+    sources, pages: int, now: datetime, book: Book | None = None, thresholds: Thresholds | None = None
+) -> tuple[list[Candidate], list[str], dict[str, int]]:
+    """new_pools pages, then trending_pools, then ripened too_early pools by address."""
+    limits = thresholds or Thresholds()
     found: list[Candidate] = []
     errors: list[str] = []
     for chain in CHAINS:
@@ -345,7 +371,32 @@ async def _scan(sources, pages: int, now: datetime) -> tuple[list[Candidate], li
             except Exception as exc:
                 errors.append(f"parse:{chain}:p{page}:{exc}")
                 log.warning("parse %s page %s failed: %s", chain, page, exc)
-    return dedupe(found), errors
+        if limits.use_trending and hasattr(sources, "gecko_trending_pools"):
+            try:
+                payload = await sources.gecko_trending_pools(chain)
+                found.extend(parse_new_pools(chain, payload, now, source="trending"))
+            except Exception as exc:
+                errors.append(f"trending:{chain}:{exc}")
+                log.warning("trending %s failed: %s", chain, exc)
+        if book is not None and hasattr(sources, "gecko_pools_multi"):
+            due = book.due_watch(chain, now, limits.ripen_batch)
+            if due:
+                try:
+                    payload = await sources.gecko_pools_multi(chain, [row["pool_address"] for row in due])
+                    ripe = parse_new_pools(chain, payload, now, source="ripe")
+                    found.extend(ripe)
+                    log.info("ripened %s/%s %s pools", len(ripe), len(due), chain)
+                    book.unwatch([row["token_key"] for row in due])
+                except Exception as exc:
+                    errors.append(f"ripen:{chain}:{exc}")
+                    log.warning("ripen %s failed: %s", chain, exc)
+    if book is not None:
+        book.prune_watch(now - timedelta(minutes=limits.ripen_max_wait_minutes))
+    unique = dedupe(found)
+    counts: dict[str, int] = {}
+    for candidate in unique:
+        counts[candidate.source] = counts.get(candidate.source, 0) + 1
+    return unique, errors, counts
 
 
 async def _trade_stage(candidates, sources, book, cycle_id, now, thresholds, rejections, errors):
@@ -374,6 +425,7 @@ async def _trade_stage(candidates, sources, book, cycle_id, now, thresholds, rej
                 if check:
                     _reject(book, cycle_id, candidate, "trade_kill", check, "", now, thresholds, rejections)
                 else:
+                    _log_pass(book, cycle_id, candidate, "trade_kill", now)
                     passed.append(candidate)
     return passed
 
@@ -387,6 +439,21 @@ def _reject(book, cycle_id, candidate, stage, check, detail, now, thresholds, re
         candidate.symbol,
         candidate.token_address,
     )
+    extra: dict[str, Any] = {}
+    if check == "too_early" and candidate.age_minutes is not None:
+        # Bench only until the pool is old enough, then re-fetch it by address.
+        remaining = max(0.0, thresholds.min_age_minutes - candidate.age_minutes) * 60
+        ttl = max(thresholds.too_early_min_ttl_seconds, int(math.ceil(remaining)))
+        extra["ttl_seconds"] = ttl
+        book.watch(
+            token_key=candidate.option_id,
+            chain=candidate.chain,
+            symbol=candidate.symbol,
+            token_address=candidate.token_address,
+            pool_address=candidate.pool_address,
+            now=now,
+            ready_at=now + timedelta(seconds=ttl),
+        )
     book.bench(
         token_key=candidate.option_id,
         reason=check,
@@ -398,8 +465,95 @@ def _reject(book, cycle_id, candidate, stage, check, detail, now, thresholds, re
         now=now,
         thresholds=thresholds,
         cycle_id=cycle_id,
+        **extra,
     )
+    _log_stage(book, cycle_id, candidate, stage, now, "DROP", check)
     rejections.append((stage, check, candidate.option_id))
+
+
+def _log_pass(book, cycle_id, candidate, stage, now, reason: str | None = None) -> None:
+    _log_stage(book, cycle_id, candidate, stage, now, "PASS", reason)
+
+
+def _log_stage(book, cycle_id, candidate, stage, now, outcome, reason) -> None:
+    trade = candidate.trade
+    mcap = (trade.market_cap_usd if trade else None) or candidate.market_cap_usd or candidate.fdv_usd
+    liquidity = (trade.liquidity_usd if trade else None) or candidate.reserve_usd
+    try:
+        book.log_stage(
+            cycle_id=cycle_id,
+            now=now,
+            token_key=candidate.option_id,
+            chain=candidate.chain,
+            symbol=candidate.symbol,
+            token_address=candidate.token_address,
+            pool_address=candidate.pool_address,
+            source=candidate.source,
+            stage=stage,
+            outcome=outcome,
+            reason=reason,
+            mcap_usd=mcap,
+            liquidity_usd=liquidity,
+            age_minutes=candidate.age_minutes,
+        )
+    except Exception:  # the feed is cosmetic; never break a cycle over it
+        log.exception("stage log failed")
+
+
+def _jev_summary(judged, pick_call, pick_label, confidence, model_id, baseline, counts) -> dict[str, Any]:
+    """What the dashboard shows in the Jev panel. Built from typed answers only."""
+    shortlist = []
+    for candidate, state, _call in judged:
+        shortlist.append(
+            {
+                "option_id": state.get("option_id"),
+                "symbol": candidate.symbol,
+                "chain": candidate.chain,
+                "rug_risk": state.get("rug_risk"),
+                "momentum_quality": state.get("momentum_quality"),
+                "holder_concentration_danger": state.get("holder_concentration_danger"),
+                "recycled_account": state.get("recycled_account"),
+                "baseline_score": state.get("baseline_score"),
+                "mcap_usd": state.get("mcap_usd"),
+                "liquidity_usd": state.get("liquidity_usd"),
+            }
+        )
+    probabilities: dict[str, float] = {}
+    if pick_call is not None:
+        selection = pick_call.answers.get("selection") or {}
+        probabilities = dict(selection.get("probabilities") or {})
+    symbol_by_id = {row["option_id"]: row["symbol"] for row in shortlist}
+    choice_symbol = symbol_by_id.get(pick_label) if pick_label != "no_trade" else None
+    if not shortlist:
+        top = sorted(counts.items(), key=lambda item: -item[1])[:3]
+        rendered = ", ".join(f"{reason} x{count}" for reason, count in top) or "nothing scanned"
+        reasoning = f"Nothing survived the kill funnel, so Jev was not asked. Top kills: {rendered}."
+    elif pick_label == "no_trade":
+        best = max(shortlist, key=lambda row: row.get("momentum_quality") or 0)
+        reasoning = (
+            f"Shortlist of {len(shortlist)}. Jev put {float(probabilities.get('no_trade', 0)):.0%} on no_trade. "
+            f"Best on momentum was {best['symbol']} (momentum {_fmt(best.get('momentum_quality'))}/3, "
+            f"rug {_fmt(best.get('rug_risk'))}). Standing down is a result."
+        )
+    else:
+        row = next((item for item in shortlist if item["option_id"] == pick_label), {})
+        agrees = "agrees" if baseline == pick_label else "disagrees"
+        reasoning = (
+            f"Picked {choice_symbol} from {len(shortlist)} at {_fmt(confidence)} confidence: "
+            f"momentum {_fmt(row.get('momentum_quality'))}/3, rug {_fmt(row.get('rug_risk'))}, "
+            f"holder danger {_fmt(row.get('holder_concentration_danger'))}. Code baseline {agrees}."
+        )
+    return {
+        "model": model_id,
+        "choice": pick_label,
+        "choice_symbol": choice_symbol,
+        "confidence": confidence,
+        "probabilities": probabilities,
+        "symbols": symbol_by_id,
+        "shortlist": shortlist,
+        "baseline": baseline,
+        "reasoning": reasoning,
+    }
 
 
 def _counts(rejections: list[tuple[str, str, str]]) -> dict[str, int]:

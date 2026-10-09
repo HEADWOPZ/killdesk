@@ -22,7 +22,7 @@ are a starting shape, not a strategy. Do your own research.
 
 ```mermaid
 flowchart TD
-  scan["SCAN: GeckoTerminal new pools"] --> bench{On the rejection bench?}
+  scan["SCAN: GeckoTerminal new pools + trending pools + ripened watchlist"] --> bench{On the rejection bench?}
   bench -->|yes| skip[Skip until the TTL expires]
   bench -->|no| free["free_kill: age, liquidity, mcap, volume, tx counts"]
   free -->|reject| log[Log the check and bench it]
@@ -107,6 +107,43 @@ killdesk report --db desk.db
 The report prints realized shadow P&L, hit rate on priced closes, the open
 position if there is one, and rejection counts by check.
 
+## Dashboard
+
+An animated, live, read-only dashboard over `desk.db`. One HTML page, no CDN,
+no build step. It streams a snapshot every 2 seconds over Server-Sent Events.
+
+```bash
+# desk and dashboard in one process
+killdesk run --mock --dashboard            # http://127.0.0.1:8787
+
+# or run them separately (the dashboard only reads desk.db)
+killdesk run --mock --pages 3 --interval-minutes 5
+killdesk dashboard --port 8787             # --host 0.0.0.0 to open it on your LAN
+```
+
+Panels:
+
+- **Status header**: SHADOW MODE badge, daemon status, next-cycle countdown,
+  cycle number, judge model, ET clock.
+- **Jev · Analysis**: 1-minute GeckoTerminal candles for the open shadow
+  position (with the entry line) or, when flat, the deepest runner of the last
+  scan, plus its PASS/DROP card for every funnel stage.
+- **The Floor**: a pixel trading floor. One bot per stage (scan, free, trade,
+  chain, soft, pick) with per-cycle sparklines, the animated kill funnel on the
+  wall screen, top kill reasons, chain and source counts, the bench bin, a
+  whale radar for trending/ripened finds, and a ticker.
+- **Kill feed**: every PASS and DROP with chain, mcap, check, source and age,
+  sliding in live, plus a strip of per-cycle funnel tiles.
+- **Balance**: $1,000 paper bank, realized shadow equity curve with live P&L
+  on the open ticket, hit rate, and per-cycle scanned vs past-free-kill bars.
+- **Jev · Pick**: choice or `no_trade`, confidence ring, choice probabilities
+  over the shortlist, and a reasoning line built from Jev's typed answers.
+- **Bench**: active bench rows with live TTL countdowns.
+
+Live marks (DexScreener, every 15 s) and candles (GeckoTerminal, every 60 s)
+are only fetched for the one or two focus tokens. `--no-live-marks` keeps the
+dashboard fully offline.
+
 ## Tune
 
 Every cutoff lives in `killdesk/thresholds.py`. Edit `Thresholds` and leave
@@ -127,16 +164,26 @@ is omitted when there is no handle. The desk does not search X for one.
 
 Rejection TTLs are on `Thresholds.rejection_ttl_seconds`. `honeypot`,
 `mint_authority_open`, `freeze_authority_open`, and `no_contract` do not
-expire. `too_early` lasts one hour. Anything not listed lasts
-`default_rejection_ttl_seconds`.
+expire. Anything not listed lasts `default_rejection_ttl_seconds`.
+
+`too_early` is special. A brand-new pool is benched only until it reaches
+`min_age_minutes`, and it goes on a ripening watchlist. Once it is old enough
+the next cycle re-fetches it by pool address (GeckoTerminal `pools/multi`,
+up to `ripen_batch` per chain in one call) and runs it through the funnel
+again. Watchlist rows older than `ripen_max_wait_minutes` are dropped.
+
+Each cycle also pulls GeckoTerminal `trending_pools` (1h) for every chain
+(`use_trending`), so aged pools with real flow reach trade, chain and Jev
+stages even when every fresh listing is minutes old.
 
 `kill_open_owner` defaults to on. New EVM launches often still have an
 owner; that is the first switch to loosen if the chain stage kills
 everything you would have kept.
 
 GeckoTerminal's published public cap is 30 calls per minute. This desk
-budgets 10 (`gecko_calls_per_minute`) so a page of listings per chain still
-leaves room for dossier calls. Raise `--pages` only if you lower the dossier
+budgets 10 (`gecko_calls_per_minute`). A cycle spends `--pages` listing
+calls per chain, one trending call per chain, and at most one ripening call
+per chain, plus dossier token-info calls. Raise `--pages` only if you lower the dossier
 cap or accept waiting on the bucket.
 
 ## Cost
@@ -150,7 +197,8 @@ normal result.
 
 ## Data sources
 
-- GeckoTerminal public API, `new_pools` and token info. No key.
+- GeckoTerminal public API, `new_pools`, `trending_pools`, `pools/multi`,
+  token info, and (dashboard only) 1-minute OHLCV. No key.
 - DexScreener `tokens/v1`. No key.
 - Solana public RPC: `getAccountInfo`, `getTokenSupply`, `getTokenLargestAccounts`.
 - Robinhood Chain RPC `https://rpc.mainnet.chain.robinhood.com` (chain id
@@ -192,9 +240,10 @@ killdesk/
   thresholds.py every tunable number
   judge.py      SDK client, httpx client, OpenRouter, MockJev, validator
   pick.py       shortlist cap and the code-side baseline
-  book.py       desk.db, one position, rejection bench
+  book.py       desk.db, one position, rejection bench, stage log, watchlist
+  dashboard/    killdesk dashboard: stdlib server, snapshot, static/index.html
   notify.py     optional Telegram
   chains/       solana.py, bsc.py, robinhood.py
-  main.py       killdesk run / killdesk report
+  main.py       killdesk run / report / dashboard
   executor.py   stub that always refuses
 ```

@@ -50,7 +50,8 @@ def _tx(block: dict, window: str) -> dict:
     return row if isinstance(row, dict) else {}
 
 
-def parse_new_pools(chain: str, payload: dict, now: datetime) -> list[Candidate]:
+def parse_new_pools(chain: str, payload: dict, now: datetime, source: str = "new") -> list[Candidate]:
+    """Parse any GeckoTerminal pool list (new_pools, trending_pools, pools/multi)."""
     if chain not in CHAINS:
         raise ValueError(f"unsupported chain {chain}")
     included: dict[str, dict] = {}
@@ -63,6 +64,7 @@ def parse_new_pools(chain: str, payload: dict, now: datetime) -> list[Candidate]
             continue
         candidate = _candidate_from_pool(chain, pool, included, now)
         if candidate is not None:
+            candidate.source = source
             found.append(candidate)
     return found
 
@@ -128,10 +130,17 @@ def _candidate_from_pool(
     )
 
 
+_SOURCE_RANK = {"ripe": 2, "trending": 1, "new": 0}
+
+
 def dedupe(candidates: list[Candidate]) -> list[Candidate]:
     best: dict[str, Candidate] = {}
     for candidate in candidates:
         current = best.get(candidate.option_id)
+        if current is not None and current.source != candidate.source:
+            # Keep the most specific provenance tag on whichever row wins.
+            tag = max((current.source, candidate.source), key=lambda item: _SOURCE_RANK.get(item, 0))
+            current.source = candidate.source = tag
         rank = candidate.reserve_usd if candidate.reserve_usd is not None else -1.0
         current_rank = -1.0
         if current is not None and current.reserve_usd is not None:
