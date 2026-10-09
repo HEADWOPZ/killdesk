@@ -17,6 +17,8 @@ _REJECTION_TTL_SECONDS: dict[str, int | None] = {
     "freeze_authority_open": None,
     "no_contract": None,
     "owner_not_renounced": 12 * 3600,
+    # too_early is overridden per pool: the bench lasts only until the pool
+    # reaches min_age_minutes, and the pool is put on the ripening watchlist.
     "too_early": 3600,
     "missing_age": 3600,
     "too_old": 24 * 3600,
@@ -90,6 +92,15 @@ class Thresholds:
     gecko_calls_per_minute: float = 10
     dex_calls_per_minute: float = 60
     rpc_calls_per_minute: float = 30
+
+    # Second sources so aged pools reach the later stages.
+    # trending_pools costs one GeckoTerminal call per chain per cycle.
+    use_trending: bool = True
+    # Ripening: too_early pools are re-fetched by address (pools/multi, 30 per
+    # call, one call per chain at most) once they are old enough.
+    ripen_batch: int = 30
+    ripen_max_wait_minutes: float = 6 * 60
+    too_early_min_ttl_seconds: int = 60
 
     default_rejection_ttl_seconds: int = 3600
     rejection_ttl_seconds: dict[str, int | None] = field(

@@ -1,7 +1,11 @@
 """Shadow book and rejection bench. SQLite file `desk.db`.
 
 One open position. A rejected token stays benched for a reason-specific TTL.
-Honeypot does not expire. `too_early` lasts about an hour.
+Honeypot does not expire. `too_early` lasts only until the pool is old enough,
+and the pool goes on a watchlist so the desk re-fetches it by address then.
+
+`stage_log` records every PASS and DROP per stage and `meta` holds daemon
+status (next cycle time, judge model). The dashboard reads both.
 """
 
 from __future__ import annotations
@@ -76,10 +80,48 @@ CREATE TABLE IF NOT EXISTS positions (
     opened_cycle_id INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS stage_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cycle_id INTEGER,
+    created_at TEXT NOT NULL,
+    token_key TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    token_address TEXT NOT NULL,
+    pool_address TEXT,
+    source TEXT,
+    stage TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    reason TEXT,
+    mcap_usd REAL,
+    liquidity_usd REAL,
+    age_minutes REAL
+);
+
+CREATE TABLE IF NOT EXISTS watchlist (
+    token_key TEXT PRIMARY KEY,
+    chain TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    token_address TEXT NOT NULL,
+    pool_address TEXT NOT NULL,
+    added_at TEXT NOT NULL,
+    ready_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_stage_log_cycle ON stage_log (cycle_id);
+CREATE INDEX IF NOT EXISTS idx_watch_ready ON watchlist (ready_at);
 CREATE INDEX IF NOT EXISTS idx_bench_expires ON bench (expires_at);
 CREATE INDEX IF NOT EXISTS idx_positions_status ON positions (status);
 CREATE INDEX IF NOT EXISTS idx_rejection_reason ON rejection_log (reason);
 """
+
+
+_DEFAULT_TTL = object()
 
 
 def utcnow() -> datetime:
@@ -150,9 +192,10 @@ class Book:
         now: datetime,
         thresholds: Thresholds | None = None,
         cycle_id: int | None = None,
+        ttl_seconds: int | None | object = _DEFAULT_TTL,
     ) -> None:
         limits = thresholds or DEFAULTS
-        seconds = limits.ttl(reason)
+        seconds = limits.ttl(reason) if ttl_seconds is _DEFAULT_TTL else ttl_seconds
         expires = None if seconds is None else iso(now + timedelta(seconds=seconds))
         self.conn.execute(
             """
@@ -176,6 +219,100 @@ class Book:
             (cycle_id, iso(now), token_key, chain, symbol, token_address, stage, reason, detail),
         )
         self.conn.commit()
+
+    def log_stage(
+        self,
+        *,
+        cycle_id: int | None,
+        now: datetime,
+        token_key: str,
+        chain: str,
+        symbol: str,
+        token_address: str,
+        stage: str,
+        outcome: str,
+        reason: str | None = None,
+        pool_address: str | None = None,
+        source: str | None = None,
+        mcap_usd: float | None = None,
+        liquidity_usd: float | None = None,
+        age_minutes: float | None = None,
+    ) -> None:
+        self.conn.execute(
+            """
+            INSERT INTO stage_log (
+                cycle_id, created_at, token_key, chain, symbol, token_address, pool_address,
+                source, stage, outcome, reason, mcap_usd, liquidity_usd, age_minutes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                cycle_id, iso(now), token_key, chain, symbol, token_address, pool_address,
+                source, stage, outcome, reason, mcap_usd, liquidity_usd, age_minutes,
+            ),
+        )
+        self.conn.commit()
+
+    def watch(
+        self,
+        *,
+        token_key: str,
+        chain: str,
+        symbol: str,
+        token_address: str,
+        pool_address: str,
+        now: datetime,
+        ready_at: datetime,
+    ) -> None:
+        """Remember a too_early pool so a later cycle re-fetches it by address."""
+        self.conn.execute(
+            """
+            INSERT INTO watchlist (token_key, chain, symbol, token_address, pool_address, added_at, ready_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(token_key) DO UPDATE SET
+                pool_address = excluded.pool_address,
+                ready_at = excluded.ready_at
+            """,
+            (token_key, chain, symbol, token_address, pool_address, iso(now), iso(ready_at)),
+        )
+        self.conn.commit()
+
+    def due_watch(self, chain: str, now: datetime, limit: int = 30) -> list[dict]:
+        rows = self.conn.execute(
+            """
+            SELECT * FROM watchlist WHERE chain = ? AND ready_at <= ?
+            ORDER BY ready_at LIMIT ?
+            """,
+            (chain, iso(now), limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def unwatch(self, token_keys: list[str]) -> None:
+        self.conn.executemany("DELETE FROM watchlist WHERE token_key = ?", [(key,) for key in token_keys])
+        self.conn.commit()
+
+    def prune_watch(self, added_before: datetime) -> int:
+        cur = self.conn.execute("DELETE FROM watchlist WHERE added_at < ?", (iso(added_before),))
+        self.conn.commit()
+        return cur.rowcount
+
+    def watch_count(self) -> int:
+        return int(self.conn.execute("SELECT COUNT(*) FROM watchlist").fetchone()[0])
+
+    def set_meta(self, **values: Any) -> None:
+        self.conn.executemany(
+            "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [(key, json.dumps(value, default=str)) for key, value in values.items()],
+        )
+        self.conn.commit()
+
+    def get_meta(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for row in self.conn.execute("SELECT key, value FROM meta").fetchall():
+            try:
+                out[row["key"]] = json.loads(row["value"])
+            except (TypeError, ValueError):
+                out[row["key"]] = row["value"]
+        return out
 
     def get_open(self) -> dict | None:
         row = self.conn.execute(
