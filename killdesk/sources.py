@@ -34,7 +34,8 @@ class LiveSources:
         self.client = client
         self.settings = settings
         limits = settings.thresholds
-        self.gecko_bucket = TokenBucket(limits.gecko_calls_per_minute)
+        # Small burst: GeckoTerminal 429s a burst of listing calls even under the per-minute cap.
+        self.gecko_bucket = TokenBucket(limits.gecko_calls_per_minute, burst=limits.gecko_burst)
         self.dex_bucket = TokenBucket(limits.dex_calls_per_minute)
         self.rpc_buckets = {
             name: TokenBucket(limits.rpc_calls_per_minute) for name in ("solana", "bsc", "robinhood")
