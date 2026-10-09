@@ -72,7 +72,48 @@ def test_request_retries_429_then_succeeds() -> None:
 
     asyncio.run(run())
     assert calls["n"] == 3
-    assert waits == [0.0, 0.0]
+    # Retry-After: 0 is not taken literally on a 429.
+    assert waits == [2.0, 2.0]
+
+
+def test_token_bucket_burst_paces_back_to_back_calls() -> None:
+    clock = Clock()
+
+    async def sleeper(seconds: float) -> None:
+        clock.now += seconds
+
+    async def run() -> None:
+        bucket = TokenBucket(10, burst=2, clock=clock, sleeper=sleeper)
+        for _ in range(4):
+            await bucket.acquire()
+
+    asyncio.run(run())
+    # Two free, then one token every 6 seconds.
+    assert round(clock.now, 6) == 12
+
+
+def test_exhausted_request_counts_once_on_the_breaker() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429)
+
+    async def sleeper(seconds: float) -> None:
+        return None
+
+    breaker = CircuitBreaker("gecko", threshold=3, reset_seconds=60)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            try:
+                await request_json(
+                    client, "GET", "https://example.test/p", source="gecko", breaker=breaker, sleeper=sleeper
+                )
+            except SourceError:
+                return
+            raise AssertionError("expected SourceError")
+
+    asyncio.run(run())
+    assert breaker.failures == 1
+    assert breaker.allow()
 
 
 def test_request_does_not_retry_client_errors() -> None:

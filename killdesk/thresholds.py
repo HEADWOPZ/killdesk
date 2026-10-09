@@ -90,6 +90,7 @@ class Thresholds:
     # Public-API politeness. GeckoTerminal's published cap is 30/min;
     # the desk budgets 10 so listing calls leave room for dossiers.
     gecko_calls_per_minute: float = 10
+    gecko_burst: float = 2
     dex_calls_per_minute: float = 60
     rpc_calls_per_minute: float = 30
 

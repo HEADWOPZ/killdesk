@@ -33,19 +33,23 @@ class CircuitOpen(SourceError):
 
 
 class TokenBucket:
-    """Refilling bucket. `per_minute` is both the rate and the burst size."""
+    """Refilling bucket. `per_minute` is the rate; `burst` caps back-to-back calls (default: per_minute)."""
 
     def __init__(
         self,
         per_minute: float,
         *,
+        burst: float | None = None,
         clock: Clock = time.monotonic,
         sleeper: Sleeper | None = None,
     ) -> None:
         if per_minute <= 0:
             raise ValueError("per_minute must be positive")
-        self.capacity = float(per_minute)
-        self.tokens = float(per_minute)
+        capacity = float(per_minute if burst is None else burst)
+        if capacity <= 0:
+            raise ValueError("burst must be positive")
+        self.capacity = capacity
+        self.tokens = capacity
         self.per_second = float(per_minute) / 60.0
         self.clock = clock
         self.sleeper = sleeper or asyncio.sleep
@@ -123,6 +127,7 @@ async def request_json(
     retries: int = 3,
     backoff: float = 0.4,
     max_delay: float = 8.0,
+    min_429_wait: float = 2.0,
     sleeper: Sleeper | None = None,
 ) -> Any:
     """HTTP JSON with backoff. 429 and 5xx retry. Other 4xx fail immediately."""
@@ -150,12 +155,15 @@ async def request_json(
             continue
         if response.status_code in RETRY_STATUSES:
             last = f"HTTP {response.status_code}"
-            if breaker is not None:
-                breaker.failure()
             if attempt + 1 >= retries:
+                # One exhausted request is one breaker failure, not one per attempt.
+                if breaker is not None:
+                    breaker.failure()
                 break
             retry_after = _retry_after_seconds(response)
-            wait = retry_after if retry_after is not None else delay
+            # GeckoTerminal answers 429 with Retry-After: 0; never hammer it back-to-back.
+            floor = min_429_wait if response.status_code == 429 else 0.0
+            wait = max(retry_after or 0.0, delay, floor)
             log.info(
                 "retry source=%s attempt=%s status=%s wait=%.2f",
                 source,
